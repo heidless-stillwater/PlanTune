@@ -25,11 +25,19 @@ let storage: FirebaseStorage;
 if (typeof window !== 'undefined') {
     if (!getApps().length) {
         app = initializeApp(firebaseConfig);
-        // Initialize Firestore with named database (plantune-db-0)
-        db = initializeFirestore(app, {}, databaseId);
+        // Initialize Firestore (handle named vs default database)
+        if (databaseId && databaseId !== '(default)') {
+            db = initializeFirestore(app, {}, databaseId);
+        } else {
+            db = getFirestore(app);
+        }
     } else {
         app = getApps()[0];
-        db = getFirestore(app, databaseId);
+        if (databaseId && databaseId !== '(default)') {
+            db = getFirestore(app, databaseId);
+        } else {
+            db = getFirestore(app);
+        }
     }
     auth = getAuth(app);
     storage = getStorage(app);

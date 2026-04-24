@@ -62,19 +62,24 @@ const STATS = [
 
 export default function LandingPage() {
     const [hoveredFeature, setHoveredFeature] = useState<number | null>(null);
-    const { user, signInWithGoogle } = useAuth();
+    const { user, profile, signInWithGoogle } = useAuth();
     const router = useRouter();
 
     const handleAuthAction = async () => {
-        if (user) {
-            router.push('/dashboard');
-        } else {
-            await signInWithGoogle();
-            // Redirect to dashboard after successful sign-in is handled in onAuthStateChanged
-            // but we can explicitly push here too if sign-in completes.
-            if (auth.currentUser) {
+        try {
+            if (user) {
                 router.push('/dashboard');
+            } else {
+                await signInWithGoogle();
+                // Redirect to dashboard after successful sign-in is handled in onAuthStateChanged
+                // but we can explicitly push here too if sign-in completes.
+                if (auth.currentUser) {
+                    router.push('/dashboard');
+                }
             }
+        } catch (err: any) {
+            console.error('[Landing] Auth action failed:', err);
+            alert(`Login failed: ${err.message}`);
         }
     };
 
@@ -95,19 +100,54 @@ export default function LandingPage() {
                         <Link href="/pricing" className="text-sm text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">Pricing</Link>
                         <a href="#providers" className="text-sm text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">Providers</a>
                         <div className="h-4 w-px bg-white/10" />
-                        <button 
-                            onClick={handleAuthAction}
-                            className="text-sm text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors"
-                        >
-                            {user ? 'Dashboard' : 'Login'}
-                        </button>
-                        <button
-                            onClick={handleAuthAction}
-                            className="btn-primary text-sm flex items-center gap-2"
-                            id="nav-get-started"
-                        >
-                            {user ? 'Go to Dashboard' : 'Get Started'} <ArrowRight size={14} />
-                        </button>
+                        {user ? (
+                            <div className="flex items-center gap-3">
+                                <div className="flex flex-col items-end">
+                                    <span className="text-sm font-semibold text-[var(--foreground)] leading-none mb-1">
+                                        {profile?.displayName || user.displayName || 'User'}
+                                    </span>
+                                    <span className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider">
+                                        {profile?.subscription || 'Free'}
+                                    </span>
+                                </div>
+                                <div className="w-9 h-9 rounded-full border-2 border-[var(--border-accent)] overflow-hidden">
+                                    {profile?.photoURL || user.photoURL ? (
+                                        <img 
+                                            src={profile?.photoURL || user.photoURL || ''} 
+                                            alt="Profile" 
+                                            className="w-full h-full object-cover"
+                                            referrerPolicy="no-referrer"
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full bg-[var(--background-tertiary)] flex items-center justify-center">
+                                            <TrendingUp size={14} className="text-[var(--primary-light)]" />
+                                        </div>
+                                    )}
+                                </div>
+                                <button
+                                    onClick={handleAuthAction}
+                                    className="btn-primary text-xs px-4 py-2"
+                                >
+                                    Dashboard
+                                </button>
+                            </div>
+                        ) : (
+                            <>
+                                <button 
+                                    onClick={handleAuthAction}
+                                    className="text-sm text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors"
+                                >
+                                    Login
+                                </button>
+                                <button
+                                    onClick={handleAuthAction}
+                                    className="btn-primary text-sm flex items-center gap-2"
+                                    id="nav-get-started"
+                                >
+                                    Get Started <ArrowRight size={14} />
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
             </nav>

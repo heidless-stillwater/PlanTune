@@ -54,6 +54,8 @@ export function Sidebar() {
     const { profile, signOut } = useAuth();
     const currentTier = (profile?.subscription || 'free') as SubscriptionTier;
 
+    console.log('[Sidebar] Current profile state:', profile);
+
     const [mobileOpen, setMobileOpen] = useState(false);
 
     // Close mobile sidebar on route change
@@ -108,15 +110,47 @@ export function Sidebar() {
         </button>
     );
 
-    const planBadge = (
-        <div className="mt-auto px-4 py-3 flex flex-col gap-2">
-            <div className="metric-card !p-3 text-center !bg-white/5 border border-white/5">
-                <div className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--foreground-muted)] mb-1">Active Plan</div>
-                <div className="text-xs font-black gradient-text uppercase tracking-widest">
-                    {SUBSCRIPTION_PLANS[currentTier]?.name || 'Free'}
+    const userProfile = (
+        <div className="px-4 py-3 border-t border-[var(--border)] mt-4">
+            <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full border-2 border-[var(--border-accent)] overflow-hidden shrink-0">
+                    {profile?.photoURL ? (
+                        <img 
+                            src={profile.photoURL} 
+                            alt="Profile" 
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                        />
+                    ) : (
+                        <div className="w-full h-full bg-[var(--background-tertiary)] flex items-center justify-center">
+                            <TrendingUp size={16} className="text-[var(--primary-light)]" />
+                        </div>
+                    )}
+                </div>
+                <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-bold text-[var(--foreground)] truncate">
+                        {profile?.displayName || 'User'}
+                    </span>
+                    <span className="text-[10px] text-[var(--foreground-muted)] truncate">
+                        {profile?.email}
+                    </span>
                 </div>
             </div>
-            {logoutButton}
+        </div>
+    );
+
+    const planBadge = (
+        <div className="mt-auto flex flex-col">
+            {userProfile}
+            <div className="px-4 py-3 flex flex-col gap-2">
+                <div className="metric-card !p-3 text-center !bg-white/5 border border-white/5">
+                    <div className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--foreground-muted)] mb-1">Active Plan</div>
+                    <div className="text-xs font-black gradient-text uppercase tracking-widest">
+                        {SUBSCRIPTION_PLANS[currentTier]?.name || 'Free'}
+                    </div>
+                </div>
+                {logoutButton}
+            </div>
         </div>
     );
 
@@ -132,10 +166,25 @@ export function Sidebar() {
             </button>
 
             {/* Desktop Sidebar */}
-            <aside className="hidden lg:flex w-64 border-r border-[var(--border)] bg-[var(--background-secondary)] p-4 flex-col gap-2 sticky top-0 h-screen shrink-0">
+            <aside className="hidden lg:flex w-64 border-r border-[var(--border)] bg-[var(--background-secondary)] p-4 flex-col sticky top-0 h-screen shrink-0 overflow-hidden">
                 {brandHeader}
-                {navItems}
-                {planBadge}
+                
+                <div className="flex-1 overflow-y-auto pr-2 -mr-2 space-y-1">
+                    {navItems}
+                </div>
+
+                <div className="mt-auto flex flex-col pt-4 border-t border-[var(--border)]">
+                    {userProfile}
+                    <div className="mt-2 px-4 py-3 flex flex-col gap-2">
+                        <div className="metric-card !p-3 text-center !bg-white/5 border border-white/5">
+                            <div className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--foreground-muted)] mb-1">Active Plan</div>
+                            <div className="text-xs font-black gradient-text uppercase tracking-widest">
+                                {SUBSCRIPTION_PLANS[currentTier]?.name || 'Free'}
+                            </div>
+                        </div>
+                        {logoutButton}
+                    </div>
+                </div>
             </aside>
 
             {/* Mobile Overlay */}

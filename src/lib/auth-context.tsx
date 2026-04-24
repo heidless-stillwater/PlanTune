@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import {
     User,
     signInWithPopup,
+    getRedirectResult,
     GoogleAuthProvider,
     signOut as firebaseSignOut,
     onAuthStateChanged,
@@ -57,30 +58,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const createOrUpdateProfile = async (firebaseUser: User): Promise<UserProfile> => {
         const userRef = doc(db, 'users', firebaseUser.uid);
         const userSnap = await getDoc(userRef);
+        
+        console.log('[Auth] Syncing profile for:', firebaseUser.email);
+        console.log('[Auth] Google photoURL:', firebaseUser.photoURL);
+        console.log('[Auth] Provider data:', firebaseUser.providerData);
 
         if (userSnap.exists()) {
             const existingProfile = userSnap.data() as UserProfile;
             const isAdminUser = ADMIN_EMAILS.includes(firebaseUser.email || '');
 
             const providerPhoto = firebaseUser.providerData.find(p => p.photoURL)?.photoURL;
-            const currentPhoto = (existingProfile.photoURL && !['null', 'undefined', ''].includes(existingProfile.photoURL))
-                ? existingProfile.photoURL
-                : (firebaseUser.photoURL || providerPhoto);
+            console.log('[Auth] Provider photo found:', providerPhoto);
+
+            // Prioritize the live Google avatar to ensure it reflects current account state
+            const latestPhoto = firebaseUser.photoURL || providerPhoto || existingProfile.photoURL;
+            console.log('[Auth] Final latestPhoto:', latestPhoto);
 
             const updatedProfile: UserProfile = {
                 ...existingProfile,
                 displayName: existingProfile.displayName || firebaseUser.displayName,
-                photoURL: currentPhoto || null,
+                photoURL: latestPhoto || null,
                 subscription: normalizeSubscription(existingProfile.subscription),
                 role: existingProfile.role || (isAdminUser ? 'admin' : 'member'),
                 updatedAt: Timestamp.now(),
             };
 
-            if (!updatedProfile.username) {
-                const base = firebaseUser.displayName?.toLowerCase().replace(/\s+/g, '_') || 'user';
-                updatedProfile.username = `${base}_${firebaseUser.uid.substring(0, 5)}`;
-            }
-
+            console.log('[Auth] Saving updated profile:', updatedProfile);
             await setDoc(userRef, updatedProfile, { merge: true });
             return updatedProfile;
         }
@@ -88,19 +91,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // New user
         const isAdminUser = ADMIN_EMAILS.includes(firebaseUser.email || '');
         const base = firebaseUser.displayName?.toLowerCase().replace(/\s+/g, '_') || 'user';
+        
+        const providerPhoto = firebaseUser.providerData.find(p => p.photoURL)?.photoURL;
+        const latestPhoto = firebaseUser.photoURL || providerPhoto;
 
         const newProfile: UserProfile = {
             uid: firebaseUser.uid,
             email: firebaseUser.email || '',
             displayName: firebaseUser.displayName,
             username: `${base}_${firebaseUser.uid.substring(0, 5)}`,
-            photoURL: firebaseUser.photoURL,
+            photoURL: latestPhoto || null,
             role: isAdminUser ? 'admin' : 'member',
             subscription: 'free',
             createdAt: Timestamp.now(),
             updatedAt: Timestamp.now(),
         };
 
+        console.log('[Auth] Creating new profile:', newProfile);
         await setDoc(userRef, newProfile);
         return newProfile;
     };
@@ -190,6 +197,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         let unsubscribeProfile: (() => void) | null = null;
         let unsubscribeCredits: (() => void) | null = null;
+
+        // Handle redirect results
+        getRedirectResult(auth).then((result) => {
+            if (result) {
+                console.log('[Auth] Redirect result received for:', result.user.email);
+            } else {
+                console.log('[Auth] No redirect result found (normal page load)');
+            }
+        }).catch((err) => {
+            console.error('[Auth] Redirect error:', err);
+            setError(err.message);
+        });
 
         const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
             setLoading(true);
