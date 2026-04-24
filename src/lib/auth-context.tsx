@@ -58,21 +58,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const createOrUpdateProfile = async (firebaseUser: User): Promise<UserProfile> => {
         const userRef = doc(db, 'users', firebaseUser.uid);
         const userSnap = await getDoc(userRef);
-        
-        console.log('[Auth] Syncing profile for:', firebaseUser.email);
-        console.log('[Auth] Google photoURL:', firebaseUser.photoURL);
-        console.log('[Auth] Provider data:', firebaseUser.providerData);
 
         if (userSnap.exists()) {
             const existingProfile = userSnap.data() as UserProfile;
             const isAdminUser = ADMIN_EMAILS.includes(firebaseUser.email || '');
 
             const providerPhoto = firebaseUser.providerData.find(p => p.photoURL)?.photoURL;
-            console.log('[Auth] Provider photo found:', providerPhoto);
-
             // Prioritize the live Google avatar to ensure it reflects current account state
             const latestPhoto = firebaseUser.photoURL || providerPhoto || existingProfile.photoURL;
-            console.log('[Auth] Final latestPhoto:', latestPhoto);
 
             const updatedProfile: UserProfile = {
                 ...existingProfile,
@@ -83,7 +76,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 updatedAt: Timestamp.now(),
             };
 
-            console.log('[Auth] Saving updated profile:', updatedProfile);
             await setDoc(userRef, updatedProfile, { merge: true });
             return updatedProfile;
         }
@@ -107,7 +99,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             updatedAt: Timestamp.now(),
         };
 
-        console.log('[Auth] Creating new profile:', newProfile);
         await setDoc(userRef, newProfile);
         return newProfile;
     };
@@ -198,14 +189,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         let unsubscribeProfile: (() => void) | null = null;
         let unsubscribeCredits: (() => void) | null = null;
 
-        // Handle redirect results
-        getRedirectResult(auth).then((result) => {
-            if (result) {
-                console.log('[Auth] Redirect result received for:', result.user.email);
-            } else {
-                console.log('[Auth] No redirect result found (normal page load)');
-            }
-        }).catch((err) => {
+        // Handle redirect results (for mobile or alternate flows)
+        getRedirectResult(auth).catch((err) => {
             console.error('[Auth] Redirect error:', err);
             setError(err.message);
         });
@@ -214,19 +199,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setLoading(true);
             try {
                 if (firebaseUser) {
-                    console.log('[Auth] Authenticated as:', firebaseUser.uid);
                     setUser(firebaseUser);
-                    
-                    console.log('[Auth] Creating/Updating profile...');
                     const initialProfile = await createOrUpdateProfile(firebaseUser);
-                    console.log('[Auth] Profile ready:', initialProfile.uid);
-
-                    console.log('[Auth] Creating/Updating credits...');
                     await createOrUpdateCredits(firebaseUser.uid, initialProfile.subscription);
-                    console.log('[Auth] Credits ready');
 
                     const userRef = doc(db, 'users', firebaseUser.uid);
-                    console.log('[Auth] Setting up profile snapshot...');
                     unsubscribeProfile = onSnapshot(userRef, (doc) => {
                         if (doc.exists()) {
                             const data = doc.data() as UserProfile;
@@ -238,14 +215,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     }, (err) => console.error('[Auth] Profile snapshot error:', err));
 
                     const creditsRef = doc(db, 'users', firebaseUser.uid, 'data', 'credits');
-                    console.log('[Auth] Setting up credits snapshot...');
                     unsubscribeCredits = onSnapshot(creditsRef, (doc) => {
                         if (doc.exists()) {
                             setCredits(doc.data() as UserCredits);
                         }
                     }, (err) => console.error('[Auth] Credits snapshot error:', err));
                 } else {
-                    console.log('[Auth] User logged out');
                     setUser(null);
                     setProfile(null);
                     setCredits(null);

@@ -54,8 +54,6 @@ export function Sidebar() {
     const { profile, signOut } = useAuth();
     const currentTier = (profile?.subscription || 'free') as SubscriptionTier;
 
-    console.log('[Sidebar] Current profile state:', profile);
-
     const [mobileOpen, setMobileOpen] = useState(false);
 
     // Close mobile sidebar on route change

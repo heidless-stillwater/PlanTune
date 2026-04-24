@@ -66,20 +66,10 @@ export default function LandingPage() {
     const router = useRouter();
 
     const handleAuthAction = async () => {
-        try {
-            if (user) {
-                router.push('/dashboard');
-            } else {
-                await signInWithGoogle();
-                // Redirect to dashboard after successful sign-in is handled in onAuthStateChanged
-                // but we can explicitly push here too if sign-in completes.
-                if (auth.currentUser) {
-                    router.push('/dashboard');
-                }
-            }
-        } catch (err: any) {
-            console.error('[Landing] Auth action failed:', err);
-            alert(`Login failed: ${err.message}`);
+        if (user) {
+            router.push('/dashboard');
+        } else {
+            await signInWithGoogle();
         }
     };
 
