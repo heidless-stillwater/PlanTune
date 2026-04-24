@@ -195,11 +195,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setLoading(true);
             try {
                 if (firebaseUser) {
+                    console.log('[Auth] Authenticated as:', firebaseUser.uid);
                     setUser(firebaseUser);
+                    
+                    console.log('[Auth] Creating/Updating profile...');
                     const initialProfile = await createOrUpdateProfile(firebaseUser);
+                    console.log('[Auth] Profile ready:', initialProfile.uid);
+
+                    console.log('[Auth] Creating/Updating credits...');
                     await createOrUpdateCredits(firebaseUser.uid, initialProfile.subscription);
+                    console.log('[Auth] Credits ready');
 
                     const userRef = doc(db, 'users', firebaseUser.uid);
+                    console.log('[Auth] Setting up profile snapshot...');
                     unsubscribeProfile = onSnapshot(userRef, (doc) => {
                         if (doc.exists()) {
                             const data = doc.data() as UserProfile;
@@ -208,15 +216,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                                 subscription: normalizeSubscription(data.subscription),
                             });
                         }
-                    });
+                    }, (err) => console.error('[Auth] Profile snapshot error:', err));
 
                     const creditsRef = doc(db, 'users', firebaseUser.uid, 'data', 'credits');
+                    console.log('[Auth] Setting up credits snapshot...');
                     unsubscribeCredits = onSnapshot(creditsRef, (doc) => {
                         if (doc.exists()) {
                             setCredits(doc.data() as UserCredits);
                         }
-                    });
+                    }, (err) => console.error('[Auth] Credits snapshot error:', err));
                 } else {
+                    console.log('[Auth] User logged out');
                     setUser(null);
                     setProfile(null);
                     setCredits(null);
@@ -224,8 +234,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     if (unsubscribeCredits) unsubscribeCredits();
                 }
             } catch (err: any) {
+                console.error('[Auth] Caught error in onAuthStateChanged:', err);
                 setError(err.message);
-                console.error('Auth state error:', err);
             } finally {
                 setLoading(false);
             }

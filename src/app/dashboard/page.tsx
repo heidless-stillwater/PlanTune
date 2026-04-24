@@ -33,7 +33,9 @@ import {
     getWastedCredits,
     generateProjection,
 } from '@/lib/credit-models';
-import { SuiteSwitcher } from '@/components/layout/SuiteSwitcher';
+import Link from 'next/link';
+import { Sidebar } from '@/components/layout/Sidebar';
+import { useAuth } from '@/lib/auth-context';
 
 // ============================================
 // Metric Card Component
@@ -169,72 +171,40 @@ function MiniProjectionBars({ tier, usage }: { tier: SubscriptionTier; usage: nu
     );
 }
 
-// ============================================
-// Nav Sidebar Item
-// ============================================
-
-function NavItem({ icon: Icon, label, active, href }: { icon: React.ElementType; label: string; active?: boolean; href: string }) {
-    return (
-        <a href={href} className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
-            active
-                ? 'bg-[var(--primary)]/10 text-[var(--primary-light)] border border-[var(--border-accent)]'
-                : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--background-tertiary)]'
-        }`}>
-            <Icon size={18} />
-            {label}
-        </a>
-    );
-}
+// (NavItem removed in favor of shared Sidebar)
 
 // ============================================
 // Dashboard Page
 // ============================================
 
 export default function DashboardPage() {
-    const [currentTier] = useState<SubscriptionTier>('free');
-    const [monthlyUsage] = useState(200);
+    const { profile, credits, loading } = useAuth();
+    
+    const currentTier = (profile?.subscription || 'free') as SubscriptionTier;
+    // Use real usage from credits if available, otherwise estimate from tier
+    const monthlyUsage = credits?.totalUsed || 0;
+    const creditBalance = credits?.balance || 0;
+    const dailyUsed = credits?.dailyAllowanceUsed || 0;
 
     const totalCredits = useMemo(() => getTotalMonthlyCredits(currentTier), [currentTier]);
     const monthlyCost = useMemo(() => getMonthlyCost(currentTier), [currentTier]);
-    const costPerCredit = useMemo(() => getCostPerCredit(currentTier, monthlyUsage), [currentTier, monthlyUsage]);
-    const wasted = useMemo(() => getWastedCredits(currentTier, monthlyUsage), [currentTier, monthlyUsage]);
+    const costPerCredit = useMemo(() => getCostPerCredit(currentTier, monthlyUsage || totalCredits), [currentTier, monthlyUsage, totalCredits]);
+    const wasted = useMemo(() => getWastedCredits(currentTier, monthlyUsage || 0), [currentTier, monthlyUsage]);
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-screen bg-[var(--background)]">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[var(--primary)]"></div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex min-h-screen">
-            {/* Sidebar */}
-            <aside className="w-64 border-r border-[var(--border)] bg-[var(--background-secondary)] p-4 flex flex-col gap-2 sticky top-0 h-screen">
-                <div className="flex items-center gap-3 px-4 py-4 mb-2">
-                    <SuiteSwitcher />
-                    <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--gradient-brand)' }}>
-                            <TrendingUp size={16} className="text-white" />
-                        </div>
-                        <span className="text-base font-bold gradient-text">PlanTune</span>
-                    </div>
-                </div>
-
-                <NavItem icon={BarChart3} label="Dashboard" active href="/dashboard" />
-                <NavItem icon={LineChart} label="Modeller" href="/modeller" />
-                <NavItem icon={Target} label="Recommendations" href="/recommendations" />
-                <NavItem icon={Activity} label="Tuner" href="/tuner" />
-                <NavItem icon={Brain} label="Research" href="/research" />
-                <NavItem icon={Globe} label="Arbitrage" href="/arbitrage" />
-
-                <div className="section-divider" />
-
-                <NavItem icon={CreditCard} label="Pricing & Packs" href="/pricing" />
-                <NavItem icon={Settings} label="Settings" href="/settings" />
-
-                <div className="mt-auto px-4 py-3">
-                    <div className="metric-card !p-3 text-center">
-                        <div className="text-xs text-[var(--foreground-muted)] mb-1">Current Plan</div>
-                        <div className="text-sm font-bold gradient-text">{SUBSCRIPTION_PLANS[currentTier].name}</div>
-                    </div>
-                </div>
-            </aside>
+            <Sidebar />
 
             {/* Main Content */}
-            <main className="flex-1 p-8">
+            <main className="flex-1 p-8 overflow-y-auto">
                 <div className="max-w-6xl mx-auto">
                     {/* Header */}
                     <div className="flex items-center justify-between mb-8">
@@ -242,10 +212,38 @@ export default function DashboardPage() {
                             <h1 className="text-2xl font-bold">Credit Dashboard</h1>
                             <p className="text-sm text-[var(--foreground-muted)] mt-1">Your AI credit analytics at a glance</p>
                         </div>
-                        <button className="btn-primary text-sm flex items-center gap-2">
+                        <Link href="/modeller" className="btn-primary text-sm flex items-center gap-2">
                             <Zap size={16} />
                             New Scenario
-                        </button>
+                        </Link>
+                    </div>
+
+                    {/* Get Started Quick Actions */}
+                    <div className="mb-12">
+                        <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--foreground-muted)] mb-4 px-1">Get Started</h2>
+                        <div className="grid md:grid-cols-3 gap-4">
+                            <Link href="/modeller" className="glass p-6 rounded-3xl border border-[var(--border)] hover:border-[var(--primary)]/30 transition-all group">
+                                <div className="w-10 h-10 rounded-xl bg-[var(--primary-light)]/10 flex items-center justify-center text-[var(--primary)] mb-4">
+                                    <LineChart size={20} />
+                                </div>
+                                <h3 className="text-sm font-bold mb-1">Model Scenarios</h3>
+                                <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wide leading-relaxed">Compare pricing tiers for your use case</p>
+                            </Link>
+                            <Link href="/research" className="glass p-6 rounded-3xl border border-[var(--border)] hover:border-[var(--accent)]/30 transition-all group">
+                                <div className="w-10 h-10 rounded-xl bg-[var(--accent-light)]/10 flex items-center justify-center text-[var(--accent)] mb-4">
+                                    <Brain size={20} />
+                                </div>
+                                <h3 className="text-sm font-bold mb-1">Research Hub</h3>
+                                <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wide leading-relaxed">Centre of Excellence for token economics</p>
+                            </Link>
+                            <Link href="/tuner" className="glass p-6 rounded-3xl border border-[var(--border)] hover:border-[var(--warning)]/30 transition-all group">
+                                <div className="w-10 h-10 rounded-xl bg-[var(--warning-light)]/10 flex items-center justify-center text-[var(--warning)] mb-4">
+                                    <Activity size={20} />
+                                </div>
+                                <h3 className="text-sm font-bold mb-1">Interactive Tuner</h3>
+                                <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wide leading-relaxed">Fine-tune your growth and usage parameters</p>
+                            </Link>
+                        </div>
                     </div>
 
                     {/* Metrics Grid */}
@@ -260,11 +258,11 @@ export default function DashboardPage() {
                         />
                         <MetricCard
                             icon={Layers}
-                            label="Credits Available"
-                            value={`${totalCredits}`}
-                            subtitle={`${DAILY_ALLOWANCE[currentTier]}/day + ${SUBSCRIPTION_PLANS[currentTier].creditsPerMonth} bonus`}
-                            trend="up"
-                            trendValue="Monthly"
+                            label="Credit Balance"
+                            value={`${creditBalance}`}
+                            subtitle={`${dailyUsed}/${DAILY_ALLOWANCE[currentTier]} daily used`}
+                            trend={creditBalance > 50 ? 'up' : creditBalance > 0 ? 'neutral' : 'down'}
+                            trendValue={creditBalance > 50 ? 'Healthy' : creditBalance > 0 ? 'Low' : 'Depleted'}
                         />
                         <MetricCard
                             icon={Activity}

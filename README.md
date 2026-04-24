@@ -1,36 +1,38 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PlanTune — AI Credit Strategy Engine
 
-## Getting Started
+PlanTune is the definitive authority on AI Credits & Token economics. It helps users understand, model, compare, and optimise their credit consumption across AI providers, starting with **NanoBanana Gemini Tokens**.
 
-First, run the development server:
+Part of the **Stillwater Sovereign App Suite**.
+
+## 🚀 Features
+
+- **Credit Dashboard**: Real-time tracking of daily allowances, bonus credits, and burn rates.
+- **Scenario Modeller**: Build and compare side-by-side pricing strategies with up to 5-year projections.
+- **Interactive Tuner**: Immersive playground with dials and sliders to tune your usage and growth parameters.
+- **Research Hub**: Centre of Excellence for credit management with Deep Research integration.
+- **Market Arbitrage**: Track pricing across Gemini, OpenAI, Anthropic, Midjourney, and Stability AI.
+- **Smart Recommendations**: AI-powered advice on tier optimisation and credit pack purchases.
+
+## 🛠 Tech Stack
+
+- **Framework**: Next.js 14+ (App Router)
+- **Styling**: Tailwind CSS 4.x
+- **Animations**: Framer Motion
+- **Auth/DB**: Firebase (Shared Identity Store)
+- **Payments**: Stripe
+- **Charts**: Recharts
+
+## 🛡 Sovereign Integration
+
+- **Sovereign Identity**: Single sign-on across the entire App Suite.
+- **Entitlement Engine**: Feature gating based on suite-wide subscription tiers.
+- **Compliance Sentinel**: Real-time technical gating for regulatory compliance and age verification.
+
+## 🏁 Getting Started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev # Starts on port 3004
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Visit [http://localhost:3004](http://localhost:3004) to begin.

@@ -1,6 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth-context';
+import { auth } from '@/lib/firebase';
 import {
     TrendingUp,
     Zap,
@@ -58,6 +62,21 @@ const STATS = [
 
 export default function LandingPage() {
     const [hoveredFeature, setHoveredFeature] = useState<number | null>(null);
+    const { user, signInWithGoogle } = useAuth();
+    const router = useRouter();
+
+    const handleAuthAction = async () => {
+        if (user) {
+            router.push('/dashboard');
+        } else {
+            await signInWithGoogle();
+            // Redirect to dashboard after successful sign-in is handled in onAuthStateChanged
+            // but we can explicitly push here too if sign-in completes.
+            if (auth.currentUser) {
+                router.push('/dashboard');
+            }
+        }
+    };
 
     return (
         <div className="min-h-screen bg-[var(--background)]">
@@ -73,13 +92,21 @@ export default function LandingPage() {
                     </div>
                     <div className="hidden md:flex items-center gap-8">
                         <a href="#features" className="text-sm text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">Features</a>
-                        <a href="#pricing" className="text-sm text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">Pricing</a>
+                        <Link href="/pricing" className="text-sm text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">Pricing</Link>
                         <a href="#providers" className="text-sm text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">Providers</a>
-                        <button
-                            className="btn-primary text-sm flex items-center gap-2"
-                            id="nav-sign-in"
+                        <div className="h-4 w-px bg-white/10" />
+                        <button 
+                            onClick={handleAuthAction}
+                            className="text-sm text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors"
                         >
-                            Get Started <ArrowRight size={14} />
+                            {user ? 'Dashboard' : 'Login'}
+                        </button>
+                        <button
+                            onClick={handleAuthAction}
+                            className="btn-primary text-sm flex items-center gap-2"
+                            id="nav-get-started"
+                        >
+                            {user ? 'Go to Dashboard' : 'Get Started'} <ArrowRight size={14} />
                         </button>
                     </div>
                 </div>
@@ -114,15 +141,15 @@ export default function LandingPage() {
 
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-slide-up"
                              style={{ animationDelay: '0.2s' }}>
-                            <button className="btn-primary text-lg px-8 py-4 flex items-center gap-3" id="hero-cta">
+                            <button onClick={handleAuthAction} className="btn-primary text-lg px-8 py-4 flex items-center gap-3" id="hero-cta">
                                 <CreditCard size={20} />
-                                Start Optimising — Free
+                                {user ? 'View Dashboard' : 'Start Optimising — Free'}
                                 <ArrowRight size={18} />
                             </button>
-                            <button className="btn-secondary text-lg px-8 py-4 flex items-center gap-3" id="hero-demo">
+                            <Link href="/modeller" className="btn-secondary text-lg px-8 py-4 flex items-center gap-3" id="hero-demo">
                                 <BarChart3 size={20} />
                                 View Demo
-                            </button>
+                            </Link>
                         </div>
                     </div>
 
@@ -219,8 +246,8 @@ export default function LandingPage() {
                         <p className="text-[var(--foreground-muted)] text-lg mb-8 max-w-xl mx-auto">
                             Join the suite. Start with the free tier — upgrade when the numbers tell you to.
                         </p>
-                        <button className="btn-primary text-lg px-10 py-4 flex items-center gap-3 mx-auto" id="cta-final">
-                            Get Started Free
+                        <button onClick={handleAuthAction} className="btn-primary text-lg px-10 py-4 flex items-center gap-3 mx-auto" id="cta-final">
+                            {user ? 'Go to Dashboard' : 'Get Started Free'}
                             <ChevronRight size={20} />
                         </button>
                     </div>

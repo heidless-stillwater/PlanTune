@@ -1,0 +1,62 @@
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/plantune'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_FIREBASE_API_KEY=$_NEXT_PUBLIC_FIREBASE_API_KEY'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=$_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_FIREBASE_PROJECT_ID=$_NEXT_PUBLIC_FIREBASE_PROJECT_ID'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=$_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=$_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_FIREBASE_APP_ID=$_NEXT_PUBLIC_FIREBASE_APP_ID'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=$_NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_FIREBASE_DATABASE_ID=$_NEXT_PUBLIC_FIREBASE_DATABASE_ID'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=$_NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_STRIPE_PRICE_STANDARD=$_NEXT_PUBLIC_STRIPE_PRICE_STANDARD'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_STRIPE_PRICE_PRO=$_NEXT_PUBLIC_STRIPE_PRICE_PRO'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_APP_URL=$_NEXT_PUBLIC_APP_URL'
+      - '--build-arg'
+      - 'GEMINI_API_KEY=$_GEMINI_API_KEY'
+      - '--build-arg'
+      - 'STRIPE_SECRET_KEY=$_STRIPE_SECRET_KEY'
+      - '--build-arg'
+      - 'STRIPE_WEBHOOK_SECRET=$_STRIPE_WEBHOOK_SECRET'
+      - '.'
+
+  # Push the container image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/plantune']
+
+  # Deploy container image to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'plantune'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/plantune'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--set-env-vars'
+      - 'GEMINI_API_KEY=$_GEMINI_API_KEY,FIREBASE_PROJECT_ID=$_NEXT_PUBLIC_FIREBASE_PROJECT_ID,FIREBASE_DATABASE_ID=$_NEXT_PUBLIC_FIREBASE_DATABASE_ID,STRIPE_SECRET_KEY=$_STRIPE_SECRET_KEY,STRIPE_WEBHOOK_SECRET=$_STRIPE_WEBHOOK_SECRET'
+
+images:
+  - 'gcr.io/$PROJECT_ID/plantune'

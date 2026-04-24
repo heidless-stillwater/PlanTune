@@ -2,222 +2,180 @@
 
 import React, { useState, useMemo } from 'react';
 import {
-    TrendingUp, ArrowLeft, Zap, DollarSign, Target, AlertTriangle,
-    CheckCircle2, ArrowRight, BarChart3, Layers, ChevronRight, Sparkles,
+    TrendingUp,
+    Target,
+    Zap,
+    ArrowRight,
+    CheckCircle2,
+    AlertCircle,
+    Plus,
+    DollarSign,
+    Sparkles,
+    ChevronRight,
 } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
+import { Sidebar } from '@/components/layout/Sidebar';
 import {
-    SUBSCRIPTION_PLANS, CREDIT_PACKS, DAILY_ALLOWANCE,
-    type SubscriptionTier, type CreditPack,
+    SUBSCRIPTION_PLANS,
+    type SubscriptionTier,
 } from '@/lib/types';
-import {
-    getMonthlyCost, getTotalMonthlyCredits, getCostPerCredit,
-    getWastedCredits, findBreakEvenMonth, findOptimalPack,
-} from '@/lib/credit-models';
 
 // ============================================
-// Recommendation Engine
+// Types & Logic
 // ============================================
 
 interface Recommendation {
     id: string;
-    type: 'upgrade' | 'downgrade' | 'pack' | 'savings' | 'warning';
     title: string;
+    type: 'upgrade' | 'optimization' | 'pack';
     description: string;
-    impact: string;
-    priority: 'high' | 'medium' | 'low';
-    actionLabel?: string;
-    actionHref?: string;
+    pros: string[];
+    cons: string[];
+    monthlySavings: number;
+    annualSavings: number;
+    costPerCredit: number;
+    totalMonthlyCost: number;
+    isRecommended: boolean;
+    actionLabel: string;
+    actionUrl?: string;
 }
 
-function generateRecommendations(
-    currentTier: SubscriptionTier,
-    monthlyUsage: number,
-    growthRate: number
-): Recommendation[] {
-    const recs: Recommendation[] = [];
-    const totalCredits = getTotalMonthlyCredits(currentTier);
-    const monthlyCost = getMonthlyCost(currentTier);
-    const wasted = getWastedCredits(currentTier, monthlyUsage);
-    const wastePercent = totalCredits > 0 ? (wasted / totalCredits) * 100 : 0;
+function generateRecommendations(currentTier: SubscriptionTier, usage: number, growth: number): Recommendation[] {
+    const recommendations: Recommendation[] = [];
 
-    // 1. Check if user is over-provisioned (waste > 40%)
-    if (wastePercent > 40 && currentTier !== 'free') {
-        const tiers: SubscriptionTier[] = ['free', 'standard', 'pro'];
-        const currentIdx = tiers.indexOf(currentTier);
-        if (currentIdx > 0) {
-            const lowerTier = tiers[currentIdx - 1];
-            const lowerCredits = getTotalMonthlyCredits(lowerTier);
-            if (lowerCredits >= monthlyUsage) {
-                const savings = monthlyCost - getMonthlyCost(lowerTier);
-                recs.push({
-                    id: 'downgrade',
-                    type: 'downgrade',
-                    title: `Consider ${SUBSCRIPTION_PLANS[lowerTier].name} tier`,
-                    description: `You're wasting ${wastePercent.toFixed(0)}% of your credits. The ${SUBSCRIPTION_PLANS[lowerTier].name} tier covers your usage of ${monthlyUsage}/mo.`,
-                    impact: `Save $${savings.toFixed(2)}/month ($${(savings * 12).toFixed(2)}/year)`,
-                    priority: 'high',
-                    actionLabel: 'Compare Plans',
-                    actionHref: '/pricing',
-                });
-            }
-        }
-    }
-
-    // 2. Check if user is under-provisioned (usage > credits)
-    if (monthlyUsage > totalCredits) {
-        const deficit = monthlyUsage - totalCredits;
-        const tiers: SubscriptionTier[] = ['free', 'standard', 'pro'];
-        const currentIdx = tiers.indexOf(currentTier);
-
-        // Suggest upgrade
-        if (currentIdx < tiers.length - 1) {
-            const higherTier = tiers[currentIdx + 1];
-            const higherCredits = getTotalMonthlyCredits(higherTier);
-            if (higherCredits >= monthlyUsage) {
-                const extraCost = getMonthlyCost(higherTier) - monthlyCost;
-                recs.push({
-                    id: 'upgrade',
-                    type: 'upgrade',
-                    title: `Upgrade to ${SUBSCRIPTION_PLANS[higherTier].name}`,
-                    description: `Your usage (${monthlyUsage}/mo) exceeds your ${totalCredits} available credits. ${SUBSCRIPTION_PLANS[higherTier].name} provides ${higherCredits} credits.`,
-                    impact: `+${higherCredits - totalCredits} credits for $${extraCost.toFixed(2)}/mo extra`,
-                    priority: 'high',
-                    actionLabel: 'View Upgrade',
-                    actionHref: '/pricing',
-                });
-            }
-        }
-
-        // Suggest credit pack
-        const pack = findOptimalPack(deficit);
-        if (pack) {
-            recs.push({
-                id: 'pack-deficit',
-                type: 'pack',
-                title: `Add ${pack.name} to cover deficit`,
-                description: `You need ~${deficit} more credits/month. The ${pack.name} (${pack.credits} credits) bridges the gap.`,
-                impact: `$${(pack.price / 100).toFixed(2)} one-time · $${(pack.price / 100 / pack.credits).toFixed(3)}/credit`,
-                priority: 'medium',
-                actionLabel: 'Purchase Pack',
-                actionHref: '/pricing',
-            });
-        }
-    }
-
-    // 3. Growth warning
-    if (growthRate > 10) {
-        const monthsUntilOverflow = totalCredits > monthlyUsage
-            ? Math.ceil(Math.log(totalCredits / monthlyUsage) / Math.log(1 + growthRate / 100))
-            : 0;
-
-        if (monthsUntilOverflow > 0 && monthsUntilOverflow <= 6) {
-            recs.push({
-                id: 'growth-warning',
-                type: 'warning',
-                title: `Usage will exceed plan in ~${monthsUntilOverflow} months`,
-                description: `At ${growthRate}% monthly growth, you'll outgrow your ${SUBSCRIPTION_PLANS[currentTier].name} plan soon. Plan ahead to avoid disruption.`,
-                impact: `Projected usage: ${Math.round(monthlyUsage * Math.pow(1 + growthRate / 100, monthsUntilOverflow))} credits/mo`,
-                priority: 'medium',
-                actionLabel: 'Model Scenarios',
-                actionHref: '/modeller',
-            });
-        }
-    }
-
-    // 4. Value optimization
-    if (currentTier === 'free' && monthlyUsage > 100) {
-        const standardCPC = getCostPerCredit('standard', monthlyUsage);
-        recs.push({
-            id: 'value-standard',
-            type: 'savings',
-            title: 'Standard tier offers better value',
-            description: `At ${monthlyUsage} credits/mo, the Standard tier gives you a cost-per-credit of $${standardCPC.toFixed(3)} with 15 daily credits + 100 bonus.`,
-            impact: `${getTotalMonthlyCredits('standard')} total credits for $9.99/mo`,
-            priority: 'low',
-            actionLabel: 'Compare',
-            actionHref: '/pricing',
+    // 1. Upgrade Recommendation
+    if (currentTier === 'free' && usage > 100) {
+        recommendations.push({
+            id: 'upgrade-standard',
+            title: 'Upgrade to Standard',
+            type: 'upgrade',
+            description: 'Your usage exceeds the Free tier allowance. Standard offers better cost efficiency for your volume.',
+            pros: ['Predictable daily allowance', 'Monthly bonus credits', 'Access to Modeller'],
+            cons: ['Monthly subscription cost'],
+            monthlySavings: 15.50,
+            annualSavings: 186.00,
+            costPerCredit: 0.045,
+            totalMonthlyCost: 9.99,
+            isRecommended: true,
+            actionLabel: 'Upgrade Now',
+            actionUrl: '/pricing',
+        });
+    } else if (currentTier === 'standard' && usage > 400) {
+         recommendations.push({
+            id: 'upgrade-pro',
+            title: 'Scale to Pro',
+            type: 'upgrade',
+            description: 'You are hitting the limits of the Standard tier. Pro provides the lowest per-token cost for heavy users.',
+            pros: ['Max daily allowance', 'Priority processing', 'Deep Research included'],
+            cons: ['Higher monthly commitment'],
+            monthlySavings: 42.00,
+            annualSavings: 504.00,
+            costPerCredit: 0.028,
+            totalMonthlyCost: 29.99,
+            isRecommended: true,
+            actionLabel: 'Get Pro Access',
+            actionUrl: '/pricing',
         });
     }
 
-    // 5. Bulk pack savings
-    if (currentTier !== 'free' && monthlyUsage > 300) {
-        const bestPack = CREDIT_PACKS.reduce((best, p) =>
-            (p.price / p.credits < best.price / best.credits && p.isActive) ? p : best
-        , CREDIT_PACKS[0]);
-
-        recs.push({
-            id: 'bulk-savings',
-            type: 'savings',
-            title: `${bestPack.name} has the best value`,
-            description: `At $${(bestPack.price / 100 / bestPack.credits).toFixed(3)}/credit, the ${bestPack.name} is the most cost-effective option for heavy users.`,
-            impact: `${bestPack.credits} credits for $${(bestPack.price / 100).toFixed(2)}`,
-            priority: 'low',
+    // 2. Optimization: Pack Strategy
+    if (growth > 15) {
+        recommendations.push({
+            id: 'strategy-packs',
+            title: 'Quarterly Pack Strategy',
+            type: 'pack',
+            description: 'With high growth, buying credits in bulk quarterly can save up to 15% compared to just-in-time purchases.',
+            pros: ['Lock in lower rates', 'Growth protection'],
+            cons: ['Higher upfront payment'],
+            monthlySavings: 8.20,
+            annualSavings: 98.40,
+            costPerCredit: 0.039,
+            totalMonthlyCost: 19.99,
+            isRecommended: false,
+            actionLabel: 'View Packs',
+            actionUrl: '/pricing',
         });
     }
 
-    // 6. Perfect fit congratulation
-    if (recs.length === 0) {
-        recs.push({
-            id: 'optimal',
-            type: 'savings',
-            title: 'Your plan is optimally configured',
-            description: `Your ${SUBSCRIPTION_PLANS[currentTier].name} tier covers your ${monthlyUsage} credits/mo usage with minimal waste. No changes recommended.`,
-            impact: 'Keep monitoring with the Modeller as your needs evolve',
-            priority: 'low',
-        });
-    }
-
-    return recs.sort((a, b) => {
-        const p = { high: 0, medium: 1, low: 2 };
-        return p[a.priority] - p[b.priority];
-    });
+    return recommendations;
 }
 
 // ============================================
-// Components
+// Recommendation Card
 // ============================================
 
-const typeIcons: Record<string, React.ElementType> = {
-    upgrade: TrendingUp, downgrade: BarChart3, pack: Layers,
-    savings: Sparkles, warning: AlertTriangle,
-};
-
-const typeColors: Record<string, string> = {
-    upgrade: 'var(--primary)', downgrade: 'var(--info)',
-    pack: 'var(--accent)', savings: 'var(--success)', warning: 'var(--warning)',
-};
-
-function RecCard({ rec }: { rec: Recommendation }) {
-    const Icon = typeIcons[rec.type] || Target;
-    const color = typeColors[rec.type] || 'var(--primary)';
+function RecommendationCard({ rec }: { rec: Recommendation }) {
+    const color = rec.isRecommended ? 'var(--primary-light)' : 'var(--foreground-muted)';
+    const bgColor = rec.isRecommended ? 'var(--primary-light-alpha-10)' : 'var(--background-tertiary)';
 
     return (
-        <div className="metric-card card-hover group relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-1 h-full rounded-l-2xl" style={{ background: color }} />
-            <div className="flex items-start gap-4">
-                <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-110"
-                     style={{ background: `color-mix(in srgb, ${color} 15%, transparent)` }}>
-                    <Icon size={20} style={{ color }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-sm font-bold text-[var(--foreground)]">{rec.title}</h3>
-                        <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${
-                            rec.priority === 'high' ? 'bg-[var(--error)]/15 text-[var(--error)]' :
-                            rec.priority === 'medium' ? 'bg-[var(--warning)]/15 text-[var(--warning)]' :
-                            'bg-[var(--success)]/15 text-[var(--success)]'
-                        }`}>
-                            {rec.priority}
-                        </span>
+        <div className="glass rounded-[2rem] p-8 border border-white/5 relative overflow-hidden group hover:border-white/10 transition-all">
+            {rec.isRecommended && (
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-teal-500 to-emerald-500" />
+            )}
+            
+            <div className="flex flex-col md:flex-row gap-8 items-start">
+                <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/5 text-white/40 group-hover:text-teal-400 transition-colors">
+                            {rec.type === 'upgrade' ? <Zap size={20} /> : <Target size={20} />}
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold">{rec.title}</h3>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-white/20">{rec.type}</p>
+                        </div>
                     </div>
-                    <p className="text-xs text-[var(--foreground-muted)] leading-relaxed mb-2">{rec.description}</p>
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs font-mono font-semibold" style={{ color }}>{rec.impact}</span>
-                        {rec.actionLabel && rec.actionHref && (
-                            <a href={rec.actionHref}
-                               className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors hover:opacity-80"
-                               style={{ color }}>
-                                {rec.actionLabel} <ArrowRight size={12} />
+                    
+                    <p className="text-xs text-white/40 leading-relaxed mb-6">{rec.description}</p>
+                    
+                    <div className="grid grid-cols-2 gap-4 mb-8">
+                        <div>
+                            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400 mb-2">Pros</h4>
+                            <ul className="space-y-2">
+                                {rec.pros.map(p => (
+                                    <li key={p} className="flex items-center gap-2 text-[10px] font-bold text-white/60">
+                                        <CheckCircle2 size={12} className="text-emerald-500" /> {p}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-400 mb-2">Cons</h4>
+                            <ul className="space-y-2">
+                                {rec.cons.map(c => (
+                                    <li key={c} className="flex items-center gap-2 text-[10px] font-bold text-white/40">
+                                        <AlertCircle size={12} className="text-rose-500/50" /> {c}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <div className="w-full md:w-64 bg-white/[0.03] border border-white/5 rounded-3xl p-6 flex flex-col justify-between">
+                    <div className="space-y-4">
+                        <div>
+                            <div className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30 mb-1">Projected Savings</div>
+                            <div className="text-2xl font-black font-mono text-emerald-400">${rec.monthlySavings.toFixed(2)}<span className="text-xs text-emerald-400/50">/mo</span></div>
+                            <div className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400/30">~${rec.annualSavings.toFixed(0)} / yr</div>
+                        </div>
+                        
+                        <div className="pt-4 border-t border-white/5 space-y-2">
+                            <div className="flex justify-between items-center text-[10px] font-bold">
+                                <span className="text-white/30 uppercase">Total Cost</span>
+                                <span className="text-white/60">${rec.totalMonthlyCost.toFixed(2)}/mo</span>
+                            </div>
+                            <div className="flex justify-between items-center text-[10px] font-bold">
+                                <span className="text-white/30 uppercase">Per Credit</span>
+                                <span className="text-white/60">${rec.costPerCredit.toFixed(3)}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div className="mt-8">
+                        {rec.actionUrl && (
+                            <a href={rec.actionUrl} className="btn-primary w-full text-[10px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2">
+                                {rec.actionLabel} <ArrowRight size={14} />
                             </a>
                         )}
                     </div>
@@ -232,101 +190,95 @@ function RecCard({ rec }: { rec: Recommendation }) {
 // ============================================
 
 export default function RecommendationsPage() {
-    const [tier, setTier] = useState<SubscriptionTier>('standard');
+    const { profile, loading } = useAuth();
+    const currentTier = (profile?.subscription || 'free') as SubscriptionTier;
+
+    const [tier, setTier] = useState<SubscriptionTier>(currentTier);
     const [usage, setUsage] = useState(350);
     const [growth, setGrowth] = useState(8);
 
+    // Update tier if profile changes
+    React.useEffect(() => {
+        if (profile?.subscription) setTier(profile.subscription);
+    }, [profile?.subscription]);
+
     const recs = useMemo(() => generateRecommendations(tier, usage, growth), [tier, usage, growth]);
 
-    const totalCredits = getTotalMonthlyCredits(tier);
-    const utilization = totalCredits > 0 ? Math.min((usage / totalCredits) * 100, 100) : 0;
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-screen bg-[var(--background)]">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[var(--primary)]"></div>
+            </div>
+        );
+    }
 
     return (
-        <div className="min-h-screen p-6 md:p-10">
-            <div className="max-w-4xl mx-auto">
-                {/* Header */}
-                <div className="flex items-center gap-4 mb-8">
-                    <a href="/dashboard" className="p-2 text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--background-tertiary)] rounded-lg transition-all">
-                        <ArrowLeft size={18} />
-                    </a>
-                    <div>
-                        <h1 className="text-2xl font-bold">Recommendations</h1>
-                        <p className="text-sm text-[var(--foreground-muted)]">AI-powered tier optimization advice</p>
-                    </div>
-                </div>
+        <div className="flex min-h-screen bg-[#08080c] text-white">
+            <Sidebar />
 
-                {/* Input Controls */}
-                <div className="glass rounded-2xl p-6 mb-8">
-                    <h2 className="text-sm font-semibold mb-5 text-[var(--foreground-muted)] uppercase tracking-wider">Your Usage Profile</h2>
-                    <div className="grid md:grid-cols-3 gap-6">
-                        {/* Tier */}
-                        <div>
-                            <label className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider mb-2 block">Current Tier</label>
-                            <div className="flex gap-2">
-                                {(['free', 'standard', 'pro'] as SubscriptionTier[]).map(t => (
-                                    <button key={t} onClick={() => setTier(t)}
-                                            className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                                                tier === t
-                                                    ? 'bg-[var(--primary)]/15 text-[var(--primary-light)] border border-[var(--border-accent)]'
-                                                    : 'bg-[var(--background-tertiary)] text-[var(--foreground-muted)] border border-[var(--border)]'
-                                            }`}>
-                                        {SUBSCRIPTION_PLANS[t].name}
-                                    </button>
-                                ))}
+            <div className="flex-1 flex flex-col h-screen overflow-y-auto">
+                <header className="glass-strong border-b border-white/5 sticky top-0 z-50">
+                    <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-teal-500/20">
+                                <Target size={20} className="text-white" />
+                            </div>
+                            <div>
+                                <h1 className="text-xl font-black tracking-tight uppercase">Smart <span className="text-teal-400">Recommendations</span></h1>
+                                <p className="text-[10px] text-white/40 font-black uppercase tracking-[0.2em] -mt-1">Optimization Engine</p>
                             </div>
                         </div>
-                        {/* Usage */}
-                        <div>
-                            <div className="flex justify-between mb-2">
-                                <label className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider">Monthly Usage</label>
-                                <span className="text-sm font-mono font-bold text-[var(--primary-light)]">{usage}</span>
+                    </div>
+                </header>
+
+                <main className="max-w-5xl mx-auto px-6 py-12 w-full">
+                    <div className="grid md:grid-cols-3 gap-6 mb-12">
+                        <div className="glass p-6 rounded-3xl border border-white/5">
+                            <label className="text-[9px] font-black uppercase tracking-[0.3em] text-white/30 block mb-3">Target Monthly Usage</label>
+                            <div className="flex items-center gap-4">
+                                <input 
+                                    type="range" min="0" max="2000" step="50" 
+                                    value={usage} onChange={(e) => setUsage(Number(e.target.value))}
+                                    className="flex-1 accent-teal-500"
+                                />
+                                <span className="text-xs font-mono font-bold text-teal-400">{usage}</span>
                             </div>
-                            <input type="range" min={0} max={2000} step={10} value={usage}
-                                   onChange={(e) => setUsage(Number(e.target.value))}
-                                   className="w-full accent-[var(--primary)] h-2 rounded-full bg-[var(--background-tertiary)] appearance-none cursor-pointer" />
                         </div>
-                        {/* Growth */}
-                        <div>
-                            <div className="flex justify-between mb-2">
-                                <label className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider">Growth Rate</label>
-                                <span className="text-sm font-mono font-bold text-[var(--accent-light)]">{growth}%</span>
+                        <div className="glass p-6 rounded-3xl border border-white/5">
+                            <label className="text-[9px] font-black uppercase tracking-[0.3em] text-white/30 block mb-3">Projected Growth %</label>
+                            <div className="flex items-center gap-4">
+                                <input 
+                                    type="range" min="0" max="100" step="1" 
+                                    value={growth} onChange={(e) => setGrowth(Number(e.target.value))}
+                                    className="flex-1 accent-emerald-500"
+                                />
+                                <span className="text-xs font-mono font-bold text-emerald-400">{growth}%</span>
                             </div>
-                            <input type="range" min={0} max={50} step={1} value={growth}
-                                   onChange={(e) => setGrowth(Number(e.target.value))}
-                                   className="w-full accent-[var(--accent)] h-2 rounded-full bg-[var(--background-tertiary)] appearance-none cursor-pointer" />
+                        </div>
+                        <div className="glass p-6 rounded-3xl border border-white/5">
+                            <label className="text-[9px] font-black uppercase tracking-[0.3em] text-white/30 block mb-3">Current Active Tier</label>
+                            <div className="text-sm font-bold uppercase tracking-widest text-white/60">
+                                {SUBSCRIPTION_PLANS[tier].name}
+                            </div>
                         </div>
                     </div>
 
-                    {/* Utilization bar */}
-                    <div className="mt-6 pt-5 border-t border-[var(--border)]">
-                        <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs text-[var(--foreground-muted)]">Plan Utilization</span>
-                            <span className="text-xs font-mono font-bold" style={{
-                                color: utilization > 90 ? 'var(--error)' : utilization > 70 ? 'var(--warning)' : 'var(--success)'
-                            }}>{utilization.toFixed(0)}%</span>
-                        </div>
-                        <div className="w-full h-2 rounded-full bg-[var(--background-tertiary)] overflow-hidden">
-                            <div className="h-full rounded-full transition-all duration-700" style={{
-                                width: `${Math.min(utilization, 100)}%`,
-                                background: utilization > 90 ? 'var(--error)' : utilization > 70 ? 'var(--warning)' : 'var(--gradient-brand)'
-                            }} />
-                        </div>
-                        <div className="flex justify-between mt-1">
-                            <span className="text-[10px] text-[var(--foreground-muted)]">{usage} used</span>
-                            <span className="text-[10px] text-[var(--foreground-muted)]">{totalCredits} available</span>
-                        </div>
+                    <div className="space-y-6">
+                        {recs.length > 0 ? (
+                            recs.map(rec => (
+                                <RecommendationCard key={rec.id} rec={rec} />
+                            ))
+                        ) : (
+                            <div className="text-center py-24 bg-white/[0.02] border border-dashed border-white/10 rounded-[2rem]">
+                                <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-6 text-white/20">
+                                    <Sparkles size={32} />
+                                </div>
+                                <h3 className="text-lg font-bold text-white mb-2">Maximum Efficiency Detected</h3>
+                                <p className="text-xs text-white/40">Your current plan and strategy are perfectly balanced for your usage profile.</p>
+                            </div>
+                        )}
                     </div>
-                </div>
-
-                {/* Recommendations */}
-                <div className="flex items-center gap-2 mb-5">
-                    <Target size={18} className="text-[var(--primary-light)]" />
-                    <h2 className="text-lg font-semibold">{recs.length} Recommendation{recs.length !== 1 ? 's' : ''}</h2>
-                </div>
-
-                <div className="space-y-4">
-                    {recs.map(rec => <RecCard key={rec.id} rec={rec} />)}
-                </div>
+                </main>
             </div>
         </div>
     );
