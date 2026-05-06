@@ -1,0 +1,27 @@
+{
+  "firestore": {
+    "database": "plantune-db-0",
+    "rules": "firestore.rules"
+  },
+  "hosting": {
+    "site": "plantune-v0",
+    "public": "out",
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "Cross-Origin-Opener-Policy",
+            "value": "same-origin-allow-popups"
+          }
+        ]
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

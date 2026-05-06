@@ -1,0 +1,9 @@
+.gcloudignore
+.git
+.gitignore
+node_modules/
+.next/
+
+# BUT DO NOT IGNORE THE DEPLOYMENT ENV
+! .env.deploy
+! .env.production

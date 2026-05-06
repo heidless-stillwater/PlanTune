@@ -1,6 +1,7 @@
+export const dynamic = "force-static";
 import { NextResponse } from 'next/server';
 
-export const runtime = 'edge';
+
 
 // We use the REST API directly to ensure edge compatibility and avoid SDK version conflicts
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
